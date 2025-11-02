@@ -497,13 +497,6 @@ def holding_more_than_3_keys(
     env: WarehouseBrawl,
 ) -> float:
 
-    # Get player object from the environment
-    player: Player = env.objects["player"]
-
-    # Apply penalty if the player is holding more than 3 keys
-    a = player.cur_action
-    if (a > 0.5).sum() > 3:
-        return env.dt
     return 0
 
 def on_win_reward(env: WarehouseBrawl, agent: str) -> float:
