@@ -314,23 +314,21 @@ class SubmittedAgent(Agent):
         # Gather state information
         myPos = self.obs_helper.get_section(obs, 'player_pos')
         myVel = self.obs_helper.get_section(obs, 'player_vel')
-        myInAir = int(self.obs_helper.get_section(obs, 'player_aerial')) == 1
-        myJumps = self.obs_helper.get_section(obs, 'player_jumps_left')
-        myWeapon = int(self.obs_helper.get_section(obs, 'player_weapon_type'))
-        myState = self.obs_helper.get_section(obs, 'player_state')
-        myFacing = int(self.obs_helper.get_section(obs, 'player_facing')) == 1
+        myInAir = self.obs_helper.get_section(obs, 'player_aerial')[0] == 1
+        myJumps = self.obs_helper.get_section(obs, 'player_jumps_left')[0]
+        myWeapon = self.obs_helper.get_section(obs, 'player_weapon_type')[0]
+        myState = self.obs_helper.get_section(obs, 'player_state')[0]
+        myFacing = self.obs_helper.get_section(obs, 'player_facing')[0] == 1
         
         oppPos = self.obs_helper.get_section(obs, 'opponent_pos')
         oppVel = self.obs_helper.get_section(obs, 'opponent_vel')
-        oppState = self.obs_helper.get_section(obs, 'opponent_state')
-        oppMove = int(self.obs_helper.get_section(obs, 'opponent_move_type'))
-        oppWeapon = int(self.obs_helper.get_section(obs, 'opponent_weapon_type'))
+        oppState = self.obs_helper.get_section(obs, 'opponent_state')[0]
+        oppMove = self.obs_helper.get_section(obs, 'opponent_move_type')[0]
+        oppWeapon = self.obs_helper.get_section(obs, 'opponent_weapon_type')[0]
         
         platPos = self.obs_helper.get_section(obs, 'player_moving_platform_pos')
         platVel = self.obs_helper.get_section(obs, 'player_moving_platform_vel')
         spawners = [self.obs_helper.get_section(obs, f'player_spawner_{i+1}') for i in range(4)]
-        
-        
         
         # Determine goal position
         goalX = None
