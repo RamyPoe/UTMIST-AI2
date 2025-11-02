@@ -64,6 +64,21 @@ class WeaponType():
     SPEAR = 1
     HAMMER = 2
 
+class PlayerState():
+    WalkingState = 0,
+    StandingState = 1,
+    TurnaroundState = 2,
+    AirTurnaroundState = 3,
+    SprintingState = 4,
+    StunState = 5,
+    InAirState = 6,
+    DodgeState = 7,
+    AttackState = 8,
+    DashState = 9,
+    BackDashState = 10,
+    KOState = 11,
+    TauntState = 12,
+
 class SubmittedAgent(Agent):
     '''
     Input the **file_path** to your agent here for submission!
@@ -83,10 +98,10 @@ class SubmittedAgent(Agent):
             WeaponType.UNARMED: {
                 MoveType.NLIGHT : 3,
                 MoveType.DLIGHT : 5,
-                MoveType.SLIGHT : 6,
+                MoveType.SLIGHT : 5,
                 MoveType.NAIR : 4,
                 MoveType.DAIR : 6,
-                MoveType.SAIR : 6,
+                MoveType.SAIR : 5,
                 MoveType.NSIG : 10,
                 MoveType.DSIG : 11,
                 MoveType.SSIG : 11,
@@ -135,12 +150,12 @@ class SubmittedAgent(Agent):
             },
             WeaponType.SPEAR: {
                 True: {
-                    MoveType.NAIR : (0.3, 0, 1.7, 1.8),
-                    MoveType.SAIR : (1.6, 0.15, 0.4, 0.8)
+                    MoveType.SAIR : (1.6, 0.15, 0.4, 0.8),
+                    MoveType.NAIR : (0.3, 0, 1.7, 1.8)
                 },
                 False: {
-                    MoveType.NSIG : (0.6, -0.8, 2, 0.7),
-                    MoveType.SLIGHT : (1, 0, 1.3, 0.9)
+                    MoveType.SLIGHT : (1, 0, 1.3, 0.9),
+                    MoveType.NSIG : (0.6, -0.8, 2, 0.7)
                 }
             },
             WeaponType.HAMMER: {
@@ -332,6 +347,9 @@ class SubmittedAgent(Agent):
         
         # Determine goal position
         goalX = None
+        maintainDistance = \
+            self.MAINTAIN_DISTANCE + (1 if myPos[1] - oppPos[1] > 1 and oppWeapon == WeaponType.SPEAR else 0)
+        
         
         if (myWeapon == WeaponType.UNARMED): # Unarmed, go for weapon
             closest = None
@@ -346,16 +364,19 @@ class SubmittedAgent(Agent):
                 self.setPickupDrop()
 
         # Stay within attacking range of opponent
-        if not goalX:
+        if not goalX and oppState != PlayerState.KOState:
             # Go through if opponent edge gaurding right side
             if self.isTowardsRightSide(oppPos) and myPos[0] > oppPos[0]:
-                goalX = oppPos[0] - self.MAINTAIN_DISTANCE
+                goalX = oppPos[0] - maintainDistance
             # Go through if opponent edge gaurding left side
             elif self.isTowardsLeftSide(oppPos) and myPos[0] < oppPos[0]:
-                goalX = oppPos[0] + self.MAINTAIN_DISTANCE
+                goalX = oppPos[0] + maintainDistance
             else:
-                goalX = oppPos[0] + (-self.MAINTAIN_DISTANCE if myPos[0] < oppPos[0] else self.MAINTAIN_DISTANCE)
-                 
+                goalX = oppPos[0] + (-maintainDistance if myPos[0] < oppPos[0] else maintainDistance)
+        
+        # Cap the goal to be within arena bounds
+        if goalX:
+            goalX = max(-6, min(6, goalX))
 
         # Basically made it here, so just idle
         if goalX and abs(goalX - myPos[0]) < 0.5:
@@ -400,7 +421,7 @@ class SubmittedAgent(Agent):
         else:
             # If we have no chances, check if turning around would help next frame
             for move, hitBox in attacks.items():
-                attackPrimed = self.check_collision(myPos, not myFacing, hitBox, oppPos) # TODO: check future?
+                attackPrimed = self.check_collision(myPos, not myFacing, hitBox, oppPosFuture)
                 if not attackPrimed: continue
                 self.moveLeft() if myFacing else self.moveRight()
                 break
@@ -414,12 +435,14 @@ class SubmittedAgent(Agent):
             self.moveRight()
             self.moveJumpRecover(myJumps, myInAir, myPos, myVel)
         elif self.isMiddleGap(myPos) and myInAir:
+            isVerticallyAligned = self.isVerticallyLinedWithPlatform(myPos, platPos)
+            
             # If in middle gap, try to recover to platform
             if not self.isAbovePlatform(myPos, platPos):
                 self.stopAttacking()
                 prioritizeLeftPlatform = myJumps == 0 or (myJumps == 1 and myPos[1] - platPos[1] > 1)
                 
-                if self.isVerticallyLinedWithPlatform(myPos, platPos):
+                if isVerticallyAligned:
                     if myPos[1] - platPos[1] > 2 or prioritizeLeftPlatform:
                         self.moveJumpRecover(myJumps, myInAir, myPos, myVel)
 
@@ -436,6 +459,8 @@ class SubmittedAgent(Agent):
                 if prioritizeLeftPlatform:
                     self.moveLeft()
             else:
+                if not isVerticallyAligned:
+                    self.stopAttacking()
                 if goalX and myJumps > 1: # Prioritize going towards goal
                     if goalX > myPos[0] and myVel[0] > 0: self.moveRight()
                     elif goalX < myPos[0] and myVel[0] < 0: self.moveLeft()
@@ -451,7 +476,7 @@ class SubmittedAgent(Agent):
         
         
         # Predict opponent attack with frame delay and dodge
-        if oppState == 8 and self.oppLastState != 8:
+        if oppState == PlayerState.AttackState and self.oppLastState != PlayerState.AttackState:
             self.oppNextAttack = self.time + self.attackDelayMap[oppWeapon][oppMove] - 2
         if self.time == self.oppNextAttack and self.euclideanDistance(myPos, oppPos) < 2.5:
             self.stopMoveHorizontal()
@@ -464,6 +489,7 @@ class SubmittedAgent(Agent):
         if myWeapon != 0:
             self.setPickupDrop(pickup=False)
 
+        print(f"Time {self.time}: GoalX {goalX}, MyPos {myPos}, OppPos {oppPos}, MyState {myState}, OppState {oppState}")
         
         # print(f"Time {self.time}: Jumps -> {myJumps}, PriLeft -> {myJumps == 0 or (myJumps == 1 and myPos[1] - platPos[1] > 1)}, VertAligned -> {self.isVerticallyLinedWithPlatform(myPos, platPos)}")
         
@@ -487,6 +513,6 @@ class SubmittedAgent(Agent):
         # print(f"Time {self.time}: Pos {oppPos}, Vel {oppVel}")
         # print(f"Time {self.time}: Pos {myPos}, Vel {myVel}, InAir {myInAir}, JumpsLeft {myJumps}")
         # print(f"Time {self.time}: {platPos[1] - myPos[1]}")
-        
+
         self.oppLastState = oppState
         return self.action
